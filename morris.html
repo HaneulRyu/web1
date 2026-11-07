@@ -1,0 +1,546 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WEB1 - 나인 모리스</title>
+  <style>
+    :root {
+      --bg: #f4efe6;
+      --panel: #fffaf2;
+      --board: #e3c48f;
+      --line: #5a3d1e;
+      --text: #2b2118;
+      --muted: #7a6a58;
+      --white: #fdfdfd;
+      --black: #222;
+      --accent: #d9480f;
+      --hint: #2b8a3e;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 16px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    }
+    h1 a { color: inherit; }
+    .wrap { max-width: 960px; margin: 0 auto; }
+    .game {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      align-items: flex-start;
+    }
+    .board-box {
+      flex: 1 1 420px;
+      max-width: 560px;
+      background: var(--board);
+      border-radius: 14px;
+      padding: 12px;
+      box-shadow: 0 4px 16px rgba(0,0,0,.15);
+    }
+    svg { width: 100%; height: auto; display: block; touch-action: manipulation; }
+    .side {
+      flex: 1 1 260px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .card {
+      background: var(--panel);
+      border-radius: 12px;
+      padding: 14px 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.08);
+    }
+    .status { font-size: 1.1rem; font-weight: 700; min-height: 3em; }
+    .status small { display: block; font-weight: 400; color: var(--muted); margin-top: 4px; }
+    .player {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 10px; border-radius: 8px; border: 2px solid transparent;
+    }
+    .player.active { border-color: var(--accent); background: #fff1e6; }
+    .player .stone { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #333; flex: none; }
+    .player .name { font-weight: 700; flex: 1; }
+    .player .info { font-size: .9rem; color: var(--muted); text-align: right; }
+    .buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+    button {
+      font: inherit; padding: 8px 14px; border-radius: 8px; cursor: pointer;
+      border: 1px solid #b9a78f; background: #fff; color: var(--text);
+    }
+    button:hover:not(:disabled) { background: #f1e7d8; }
+    button:disabled { opacity: .45; cursor: default; }
+    .rules { font-size: .9rem; line-height: 1.55; }
+    .rules ul { padding-left: 18px; margin: 6px 0 0; }
+    .point { cursor: pointer; }
+    .piece { transition: cx .15s, cy .15s; }
+    .overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,.45);
+      display: none; align-items: center; justify-content: center; padding: 16px;
+    }
+    .overlay.show { display: flex; }
+    .overlay .card { text-align: center; max-width: 360px; width: 100%; }
+    .overlay h2 { margin-top: 0; }
+    nav ol { margin: 0 0 16px; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1><a href="index.html">WEB</a></h1>
+  <nav>
+    <ol>
+      <li><a href="1.html">HTML</a></li>
+      <li><a href="2.html">CSS</a></li>
+      <li><a href="3.html">JavaScript</a></li>
+      <li><a href="morris.html">나인 모리스</a></li>
+    </ol>
+  </nav>
+  <h2>나인 모리스 (Nine Men's Morris)</h2>
+
+  <div class="game">
+    <div class="board-box">
+      <svg id="board" viewBox="-0.6 -0.6 7.2 7.2" aria-label="나인 모리스 게임판"></svg>
+    </div>
+
+    <div class="side">
+      <div class="card status" id="status"></div>
+
+      <div class="card">
+        <div class="player" id="p0">
+          <span class="stone" style="background:var(--white)"></span>
+          <span class="name">흰색</span>
+          <span class="info" id="p0info"></span>
+        </div>
+        <div class="player" id="p1">
+          <span class="stone" style="background:var(--black)"></span>
+          <span class="name">검은색</span>
+          <span class="info" id="p1info"></span>
+        </div>
+      </div>
+
+      <div class="card buttons">
+        <button id="undoBtn">한 수 무르기</button>
+        <button id="drawBtn">무승부 제안</button>
+        <button id="newBtn">새 게임</button>
+      </div>
+
+      <div class="card rules">
+        <strong>규칙</strong>
+        <ul>
+          <li><b>놓기:</b> 흰색부터 번갈아 9개씩 빈 점에 말을 놓습니다.</li>
+          <li><b>이동:</b> 모두 놓은 뒤에는 선을 따라 인접한 빈 점으로 한 칸 이동합니다.</li>
+          <li><b>밀:</b> 한 줄에 내 말 3개를 만들면 상대 말 1개를 제거합니다. 밀에 속한 말은 상대 말이 전부 밀에 속해 있을 때만 제거할 수 있습니다.</li>
+          <li><b>플라잉:</b> 말이 3개만 남으면 아무 빈 점으로나 이동할 수 있습니다.</li>
+          <li><b>승리:</b> 상대 말이 2개 이하가 되거나, 상대가 움직일 수 없으면 승리합니다.</li>
+          <li><b>무승부:</b> 이동 단계에서 50수 동안 밀이 만들어지지 않거나, 무승부 제안을 상대가 수락하면 무승부입니다.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="card">
+    <h2 id="overlayTitle"></h2>
+    <p id="overlayText"></p>
+    <div class="buttons" id="overlayButtons" style="justify-content:center"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var NAMES = ['흰색', '검은색'];
+  var PIECES_PER_PLAYER = 9;
+  var NO_MILL_DRAW_LIMIT = 50;
+
+  // 24개 점의 좌표 (7x7 격자). 인덱스 = 링 * 8 + k (k: 왼쪽 위 모서리부터 시계방향)
+  var RING_PATTERN = [[0, 0], [1, 0], [2, 0], [2, 1], [2, 2], [1, 2], [0, 2], [0, 1]];
+  var POINTS = [];
+  for (var r = 0; r < 3; r++) {
+    var size = 6 - 2 * r; // 6, 4, 2
+    var step = size / 2;
+    RING_PATTERN.forEach(function (p) {
+      POINTS.push([r + p[0] * step, r + p[1] * step]);
+    });
+  }
+
+  // 인접 관계
+  var ADJ = POINTS.map(function () { return []; });
+  for (var ring = 0; ring < 3; ring++) {
+    for (var k = 0; k < 8; k++) {
+      var i = ring * 8 + k;
+      ADJ[i].push(ring * 8 + (k + 1) % 8, ring * 8 + (k + 7) % 8);
+      if (k % 2 === 1) {
+        if (ring > 0) ADJ[i].push((ring - 1) * 8 + k);
+        if (ring < 2) ADJ[i].push((ring + 1) * 8 + k);
+      }
+    }
+  }
+
+  // 밀(3개 일렬) 목록
+  var MILLS = [];
+  for (ring = 0; ring < 3; ring++) {
+    for (k = 0; k < 8; k += 2) {
+      MILLS.push([ring * 8 + k, ring * 8 + k + 1, ring * 8 + (k + 2) % 8]);
+    }
+  }
+  for (k = 1; k < 8; k += 2) MILLS.push([k, 8 + k, 16 + k]);
+
+  // ---------- 게임 상태 ----------
+  var state, history;
+
+  function newState() {
+    var b = [];
+    for (var i = 0; i < 24; i++) b.push(null);
+    return {
+      board: b,              // null | 0 | 1
+      turn: 0,               // 0: 흰색, 1: 검은색
+      inHand: [PIECES_PER_PLAYER, PIECES_PER_PLAYER],
+      onBoard: [0, 0],
+      removing: false,       // 밀을 만들어 상대 말을 제거해야 하는 상태
+      selected: null,        // 이동 단계에서 선택한 말
+      noMillMoves: 0,        // 이동 단계에서 밀 없이 진행된 수
+      lastMove: null,        // {from, to}
+      lastMill: null,        // 방금 만든 밀
+      result: null           // null | {winner: 0|1|null, reason}
+    };
+  }
+
+  function clone(s) { return JSON.parse(JSON.stringify(s)); }
+
+  function startGame() {
+    state = newState();
+    history = [];
+    hideOverlay();
+    render();
+  }
+
+  function pushHistory() {
+    var s = clone(state);
+    s.selected = null;
+    history.push(s);
+  }
+
+  // ---------- 규칙 ----------
+  function millsAt(board, idx, player) {
+    return MILLS.filter(function (m) {
+      return m.indexOf(idx) !== -1 && m.every(function (p) { return board[p] === player; });
+    });
+  }
+
+  function inMill(board, idx) {
+    return board[idx] !== null && millsAt(board, idx, board[idx]).length > 0;
+  }
+
+  function isPlacing(s, player) { return s.inHand[player] > 0; }
+
+  function canFly(s, player) {
+    return !isPlacing(s, player) && s.onBoard[player] === 3;
+  }
+
+  function targetsFrom(s, from) {
+    var player = s.board[from];
+    var cand = canFly(s, player) ? POINTS.map(function (_, i) { return i; }) : ADJ[from];
+    return cand.filter(function (i) { return s.board[i] === null; });
+  }
+
+  function hasAnyMove(s, player) {
+    if (isPlacing(s, player)) return true;
+    for (var i = 0; i < 24; i++) {
+      if (s.board[i] === player && targetsFrom(s, i).length > 0) return true;
+    }
+    return false;
+  }
+
+  function removableTargets(s) {
+    var opp = 1 - s.turn;
+    var all = [], free = [];
+    for (var i = 0; i < 24; i++) {
+      if (s.board[i] === opp) {
+        all.push(i);
+        if (!inMill(s.board, i)) free.push(i);
+      }
+    }
+    return free.length > 0 ? free : all;
+  }
+
+  function totalPieces(s, player) { return s.inHand[player] + s.onBoard[player]; }
+
+  // 말을 놓거나 옮긴 뒤 처리
+  function afterMove(idx, isMovement) {
+    var mills = millsAt(state.board, idx, state.turn);
+    if (mills.length > 0 && state.onBoard[1 - state.turn] > 0) {
+      state.lastMill = mills[0];
+      state.removing = true;
+      state.noMillMoves = 0;
+      return;
+    }
+    state.lastMill = mills.length > 0 ? mills[0] : null;
+    if (isMovement) state.noMillMoves++;
+    endTurn();
+  }
+
+  function endTurn() {
+    state.removing = false;
+    state.selected = null;
+    state.turn = 1 - state.turn;
+    checkGameOver();
+  }
+
+  function checkGameOver() {
+    var p = state.turn;
+    if (totalPieces(state, p) < 3) {
+      state.result = { winner: 1 - p, reason: NAMES[p] + '의 말이 2개 이하가 되었습니다.' };
+    } else if (!hasAnyMove(state, p)) {
+      state.result = { winner: 1 - p, reason: NAMES[p] + '이(가) 더 이상 움직일 수 없습니다.' };
+    } else if (state.noMillMoves >= NO_MILL_DRAW_LIMIT) {
+      state.result = { winner: null, reason: NO_MILL_DRAW_LIMIT + '수 동안 밀이 만들어지지 않았습니다.' };
+    }
+    if (state.result) showResult();
+  }
+
+  // ---------- 입력 처리 ----------
+  function onPointClick(idx) {
+    if (state.result) return;
+    var p = state.turn;
+    var cell = state.board[idx];
+
+    if (state.removing) {
+      if (removableTargets(state).indexOf(idx) === -1) return;
+      state.board[idx] = null;
+      state.onBoard[1 - p]--;
+      state.lastMill = null;
+      endTurn();
+      render();
+      return;
+    }
+
+    if (isPlacing(state, p)) {
+      if (cell !== null) return;
+      pushHistory();
+      state.board[idx] = p;
+      state.inHand[p]--;
+      state.onBoard[p]++;
+      state.lastMove = { from: null, to: idx };
+      afterMove(idx, false);
+      render();
+      return;
+    }
+
+    // 이동 단계
+    if (cell === p) {
+      state.selected = (state.selected === idx) ? null : idx;
+      render();
+      return;
+    }
+    if (cell === null && state.selected !== null) {
+      if (targetsFrom(state, state.selected).indexOf(idx) === -1) return;
+      pushHistory();
+      var from = state.selected;
+      state.board[from] = null;
+      state.board[idx] = p;
+      state.selected = null;
+      state.lastMove = { from: from, to: idx };
+      afterMove(idx, true);
+      render();
+    }
+  }
+
+  function undo() {
+    if (history.length === 0) return;
+    state = history.pop();
+    hideOverlay();
+    render();
+  }
+
+  // ---------- 렌더링 ----------
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+  var svg = document.getElementById('board');
+
+  function el(name, attrs, parent) {
+    var e = document.createElementNS(SVG_NS, name);
+    for (var a in attrs) e.setAttribute(a, attrs[a]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+
+  function drawBoardLines() {
+    var g = el('g', { stroke: 'var(--line)', 'stroke-width': 0.06, fill: 'none', 'stroke-linecap': 'round' }, svg);
+    for (var r = 0; r < 3; r++) {
+      el('rect', { x: r, y: r, width: 6 - 2 * r, height: 6 - 2 * r }, g);
+    }
+    el('line', { x1: 3, y1: 0, x2: 3, y2: 2 }, g);
+    el('line', { x1: 3, y1: 4, x2: 3, y2: 6 }, g);
+    el('line', { x1: 0, y1: 3, x2: 2, y2: 3 }, g);
+    el('line', { x1: 4, y1: 3, x2: 6, y2: 3 }, g);
+  }
+
+  var dynamicLayer;
+
+  function render() {
+    if (!dynamicLayer) {
+      drawBoardLines();
+      dynamicLayer = el('g', {}, svg);
+    }
+    while (dynamicLayer.firstChild) dynamicLayer.removeChild(dynamicLayer.firstChild);
+
+    var p = state.turn;
+    var targets = [];
+    var removable = [];
+    if (!state.result) {
+      if (state.removing) removable = removableTargets(state);
+      else if (isPlacing(state, p)) targets = POINTS.map(function (_, i) { return i; }).filter(function (i) { return state.board[i] === null; });
+      else if (state.selected !== null) targets = targetsFrom(state, state.selected);
+    }
+
+    // 방금 만든 밀 강조
+    if (state.lastMill) {
+      var a = POINTS[state.lastMill[0]], c = POINTS[state.lastMill[2]];
+      el('line', { x1: a[0], y1: a[1], x2: c[0], y2: c[1], stroke: 'var(--accent)', 'stroke-width': 0.18, 'stroke-linecap': 'round', opacity: 0.6 }, dynamicLayer);
+    }
+
+    // 직전 이동 표시
+    if (state.lastMove && state.lastMove.from !== null && state.board[state.lastMove.from] === null) {
+      var f = POINTS[state.lastMove.from];
+      el('circle', { cx: f[0], cy: f[1], r: 0.2, fill: 'none', stroke: 'var(--muted)', 'stroke-width': 0.04, 'stroke-dasharray': '0.08 0.06' }, dynamicLayer);
+    }
+
+    POINTS.forEach(function (pt, i) {
+      var g = el('g', { 'class': 'point' }, dynamicLayer);
+      g.addEventListener('click', function () { onPointClick(i); });
+      // 클릭 영역
+      el('circle', { cx: pt[0], cy: pt[1], r: 0.45, fill: 'transparent' }, g);
+      var owner = state.board[i];
+      if (owner === null) {
+        el('circle', { cx: pt[0], cy: pt[1], r: 0.12, fill: 'var(--line)' }, g);
+        if (targets.indexOf(i) !== -1 && (state.selected !== null || isPlacing(state, p))) {
+          el('circle', { cx: pt[0], cy: pt[1], r: 0.2, fill: 'var(--hint)', opacity: state.selected !== null ? 0.55 : 0.18 }, g);
+        }
+      } else {
+        el('circle', {
+          'class': 'piece', cx: pt[0], cy: pt[1], r: 0.36,
+          fill: owner === 0 ? 'var(--white)' : 'var(--black)',
+          stroke: owner === 0 ? '#444' : '#000', 'stroke-width': 0.05
+        }, g);
+        el('circle', { cx: pt[0] - 0.1, cy: pt[1] - 0.1, r: 0.12, fill: owner === 0 ? '#fff' : '#555', opacity: 0.6 }, g);
+        if (state.lastMove && state.lastMove.to === i) {
+          el('circle', { cx: pt[0], cy: pt[1], r: 0.07, fill: 'var(--accent)' }, g);
+        }
+        if (state.selected === i) {
+          el('circle', { cx: pt[0], cy: pt[1], r: 0.44, fill: 'none', stroke: 'var(--hint)', 'stroke-width': 0.08 }, g);
+        }
+        if (removable.indexOf(i) !== -1) {
+          el('circle', { cx: pt[0], cy: pt[1], r: 0.44, fill: 'none', stroke: 'var(--accent)', 'stroke-width': 0.08, 'stroke-dasharray': '0.15 0.08' }, g);
+        }
+      }
+    });
+
+    renderSide();
+  }
+
+  function renderSide() {
+    var p = state.turn;
+    var statusEl = document.getElementById('status');
+    var main, sub;
+    if (state.result) {
+      main = state.result.winner === null ? '무승부' : NAMES[state.result.winner] + ' 승리!';
+      sub = state.result.reason;
+    } else if (state.removing) {
+      main = NAMES[p] + ': 밀 완성! 제거할 상대 말을 고르세요.';
+      sub = '점선으로 표시된 말만 제거할 수 있습니다.';
+    } else if (isPlacing(state, p)) {
+      main = NAMES[p] + ' 차례 — 말을 놓으세요.';
+      sub = '빈 점을 클릭하세요. (남은 말 ' + state.inHand[p] + '개)';
+    } else if (canFly(state, p)) {
+      main = NAMES[p] + ' 차례 — 플라잉!';
+      sub = state.selected === null ? '움직일 말을 고른 뒤 아무 빈 점으로 이동하세요.' : '이동할 빈 점을 클릭하세요.';
+    } else {
+      main = NAMES[p] + ' 차례 — 말을 이동하세요.';
+      sub = state.selected === null ? '움직일 내 말을 클릭하세요.' : '초록색으로 표시된 인접 점을 클릭하세요.';
+    }
+    if (!state.result && !isPlacing(state, 0) && !isPlacing(state, 1)) {
+      sub += ' (밀 없이 ' + state.noMillMoves + '/' + NO_MILL_DRAW_LIMIT + '수)';
+    }
+    statusEl.innerHTML = '';
+    statusEl.appendChild(document.createTextNode(main));
+    var small = document.createElement('small');
+    small.textContent = sub;
+    statusEl.appendChild(small);
+
+    [0, 1].forEach(function (pl) {
+      document.getElementById('p' + pl).classList.toggle('active', !state.result && state.turn === pl);
+      document.getElementById('p' + pl + 'info').textContent =
+        '손에 ' + state.inHand[pl] + ' · 판에 ' + state.onBoard[pl] + (canFly(state, pl) ? ' · 플라잉' : '');
+    });
+
+    document.getElementById('undoBtn').disabled = history.length === 0;
+    document.getElementById('drawBtn').disabled = !!state.result;
+  }
+
+  // ---------- 오버레이 ----------
+  var overlay = document.getElementById('overlay');
+
+  function showOverlay(title, text, buttons) {
+    document.getElementById('overlayTitle').textContent = title;
+    document.getElementById('overlayText').textContent = text;
+    var box = document.getElementById('overlayButtons');
+    box.innerHTML = '';
+    buttons.forEach(function (b) {
+      var btn = document.createElement('button');
+      btn.textContent = b.label;
+      btn.addEventListener('click', b.onClick);
+      box.appendChild(btn);
+    });
+    overlay.classList.add('show');
+  }
+
+  function hideOverlay() { overlay.classList.remove('show'); }
+
+  function showResult() {
+    var r = state.result;
+    showOverlay(
+      r.winner === null ? '무승부' : NAMES[r.winner] + ' 승리!',
+      r.reason,
+      [
+        { label: '판 보기', onClick: hideOverlay },
+        { label: '새 게임', onClick: startGame }
+      ]
+    );
+  }
+
+  function offerDraw() {
+    if (state.result) return;
+    var p = state.turn;
+    showOverlay(
+      '무승부 제안',
+      NAMES[p] + '이(가) 무승부를 제안했습니다. ' + NAMES[1 - p] + ', 수락하시겠습니까?',
+      [
+        { label: '수락', onClick: function () {
+            state.result = { winner: null, reason: '양측 합의로 무승부가 되었습니다.' };
+            state.selected = null;
+            render();
+            showResult();
+          } },
+        { label: '거절', onClick: hideOverlay }
+      ]
+    );
+  }
+
+  document.getElementById('undoBtn').addEventListener('click', undo);
+  document.getElementById('drawBtn').addEventListener('click', offerDraw);
+  document.getElementById('newBtn').addEventListener('click', function () {
+    if (history.length === 0 || state.result) { startGame(); return; }
+    showOverlay('새 게임', '진행 중인 게임을 끝내고 새로 시작할까요?', [
+      { label: '새로 시작', onClick: startGame },
+      { label: '취소', onClick: hideOverlay }
+    ]);
+  });
+
+  startGame();
+})();
+</script>
+</body>
+</html>
